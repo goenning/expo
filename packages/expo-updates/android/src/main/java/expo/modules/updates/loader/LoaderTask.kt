@@ -395,24 +395,15 @@ class LoaderTask(
             }
 
             val embeddedUpdate = EmbeddedManifest.get(context, configuration)!!.updateEntity
+
+            // if no embedded update, don't bother trying to roll back
             if (embeddedUpdate == null) {
               launchUpdate(null)
               return
             }
 
-            val launcher = DatabaseLauncher(configuration, directory, fileDownloader, selectionPolicy)
-            val launchableUpdate = launcher.getLaunchableUpdate(database, context)
-            val manifestFilters = ManifestMetadata.getManifestFilters(database, configuration)
-
-            if (!selectionPolicy.shouldLoadRollBackToEmbeddedDirective(updateDirective, embeddedUpdate, launchableUpdate, manifestFilters)) {
-              launchUpdate(null)
-              return
-            }
-
-            // update the embedded update commit time in the in-memory embedded update since it is a singleton
-            embeddedUpdate.commitTime = updateDirective.commitTime
-
-            // update the embedded update commit time in the database (requires loading and then updating)
+            // Load the embedded update from database as it may have been previously rolled back to.
+            // Use that when deciding what to do next.
             EmbeddedLoader(context, configuration, database, directory).start(object : LoaderCallback {
               /**
                * This should never happen since we check for the embedded update above
@@ -428,7 +419,21 @@ class LoaderTask(
 
               override fun onSuccess(loaderResult: Loader.LoaderResult) {
                 val embeddedUpdateToLoad = loaderResult.updateEntity
-                database.updateDao().setUpdateCommitTime(embeddedUpdateToLoad!!, updateDirective.commitTime)
+
+                val launcher = DatabaseLauncher(configuration, directory, fileDownloader, selectionPolicy)
+                val launchableUpdate = launcher.getLaunchableUpdate(database, context)
+                val manifestFilters = ManifestMetadata.getManifestFilters(database, configuration)
+
+                if (!selectionPolicy.shouldLoadRollBackToEmbeddedDirective(updateDirective, embeddedUpdateToLoad!!, launchableUpdate, manifestFilters)) {
+                  launchUpdate(null)
+                  return
+                }
+
+                // update the embedded update commit time in the in-memory embedded update since it is a singleton
+                embeddedUpdate.commitTime = updateDirective.commitTime
+
+                // update the embedded commit time in the database so that it is launched
+                database.updateDao().setUpdateCommitTime(embeddedUpdateToLoad, updateDirective.commitTime)
                 launchUpdate(null)
               }
 
