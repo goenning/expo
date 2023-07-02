@@ -3,7 +3,6 @@ import fetch from 'node-fetch';
 import type WS from 'ws';
 
 import { MetroBundlerDevServer } from '../MetroBundlerDevServer';
-import { DebuggerScriptSourceHandler } from './handlers/DebuggerScriptSource';
 import { NetworkResponseHandler } from './handlers/NetworkResponse';
 import { PageReloadHandler } from './handlers/PageReload';
 import { VscodeCompatHandler } from './handlers/VscodeCompat';
@@ -17,7 +16,6 @@ export function createInspectorDeviceClass(
     /** All handlers that should be used to intercept or reply to CDP events */
     public handlers: InspectorHandler[] = [
       new NetworkResponseHandler(),
-      new DebuggerScriptSourceHandler(this),
       new PageReloadHandler(metroBundler),
       new VscodeCompatHandler(),
     ];
